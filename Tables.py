@@ -35,7 +35,7 @@ def pass_one_assembler(source_code):
                 symtab[label] = [lc, sym_index]
                 sym_index += 1
             else:
-                symtab[label][0] = lc # Update address if already present
+                symtab[label][0] = lc  # Update address if already present
             parts = parts[1:] # Move to the next part of the instruction
 
         if not parts: continue
