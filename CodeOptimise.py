@@ -7,7 +7,7 @@ def optimize_tac(tac_lines):
     optimized_code = []
     
     known_constants = {} 
-    computed_exprs = {}   # NEW: Dictionary for CSE
+    computed_exprs = {}   #  Dictionary for CSE
     
     for line in tac_lines:
         parts = line.split()
