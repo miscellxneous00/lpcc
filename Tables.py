@@ -1,126 +1,132 @@
-def pass_one_assembler(source_code):
-    # Dictionaries for our Mnemonics (Standard format)
-    OPTAB = {
-        'STOP': ('IS', '00'), 'ADD': ('IS', '01'), 'SUB': ('IS', '02'), 
-        'MULT': ('IS', '03'), 'MOVER': ('IS', '04'), 'MOVEM': ('IS', '05'),
-        'COMP': ('IS', '06'), 'BC': ('IS', '07'), 'DIV': ('IS', '08'), 
-        'READ': ('IS', '09'), 'PRINT': ('IS', '10')
-    }
-    AD = {'START': ('AD', '01'), 'END': ('AD', '02'), 'ORIGIN': ('AD', '03'), 'EQU': ('AD', '04'), 'LTORG': ('AD', '05')}
-    DL = {'DC': ('DL', '01'), 'DS': ('DL', '02')}
-    REG = {'AREG': '1', 'BREG': '2', 'CREG': '3', 'DREG': '4'}
-    COND = {'EQ': '1', 'LT': '2', 'GT': '3', 'LE': '4', 'GE': '5', 'ANY': '6'}
+def tables(source_code):
+    OP = {'STOP':('IS','00'), 'ADD':('IS','01') ,'SUB':('IS','02'), 'MULT':('IS','03'), 'MOVER':('IS','04'),'MOVEM':('IS','05'), 'CMP':('IS','06'), 'BC':('IS','07'), 'DIV':('IS','08'), 'READ':('IS','09'), 'PRINT':('IS','10') }
 
-    # Data Structures required for the output
-    symtab = {}       # Symbol Table: {Symbol: [Address, Index]}
-    littab = []       # Literal Table: [[Literal, Address]]
-    pooltab = [0]     # Pool Table: [Start Index of Literals]
-    ic = []           # Intermediate Code
-    
-    lc = 0            # Location Counter
+    AD = {'START':('AD','01'), 'END':('AD','02'), 'ORIGIN':('AD','03'), 'EQU':('AD','04'), 'LTORG':('AD','05')}
+
+    DL = {'DC':('DL','01'),'DS':('DL','02')}
+
+    REG = {'AREG':'1','BREG':'2','CREG':'3','DREG':'4'}
+
+    COND = {'EQ':'1','LT':'2','GT':'3','LE':'4','GE':'5','ANY':'6'}
+
+    sym_tab = {}  # {symbol : [index , addr]}
+    lit_tab = []  # [ [lit , addr] ]
+    pool_tab = [0]
+    ic = []
     sym_index = 1
+    lc=0
 
     lines = source_code.strip().split('\n')
 
     for line in lines:
-        parts = line.replace(',', ' ').split()
-        if not parts: continue
-        
-        intermediate_line = []
-        
-        # 1. Handle Label (Symbol)
-        if parts[0] not in OPTAB and parts[0] not in AD and parts[0] not in DL:
-            label = parts[0]
-            if label not in symtab:
-                symtab[label] = [lc, sym_index]
-                sym_index += 1
+        parts = line.replace(',',' ').split()
+        if not parts : continue
+
+        inter_code = []
+        current_label = None
+
+        # Labels
+        if(parts[0] not in AD and parts[0] not in DL and parts[0] not in OP):
+            current_label = parts[0]
+
+            if current_label not in sym_tab:
+                sym_tab[current_label] = [sym_index,lc]
+                sym_index+=1
             else:
-                symtab[label][0] = lc  # Update address if already present
-            parts = parts[1:] # Move to the next part of the instruction
+                sym_tab[current_label][1] = lc
 
-        if not parts: continue
-        mnemonic = parts[0]
+            parts = parts[1:]
 
-        # 2. Handle Assembler Directives (AD)
-        if mnemonic in AD:
-            intermediate_line.append(f"({AD[mnemonic][0]}, {AD[mnemonic][1]})")
-            
-            if mnemonic == 'START':
+        mnenomic = parts[0]
+
+        # AD
+        if mnenomic in AD:
+
+            inter_code.append(f"({AD[mnenomic][0]} , {AD[mnenomic][1]})")
+
+            if mnenomic == 'START':
                 lc = int(parts[1]) if len(parts) > 1 else 0
-                if len(parts) > 1: intermediate_line.append(f"(C, {parts[1]})")
+                if len(parts) > 1 : inter_code.append(f"(C , {lc})")
             
-            elif mnemonic == 'END' or mnemonic == 'LTORG':
-                # Assign addresses to unassigned literals
-                for i in range(pooltab[-1], len(littab)):
-                    littab[i][1] = lc
-                    lc += 1
-                if mnemonic == 'LTORG':
-                    pooltab.append(len(littab))
+            elif mnenomic == 'END' or mnenomic == 'LTORG':
+                for i in range(pool_tab[-1],len(lit_tab)):
+                    lit_tab[i][1] = lc
+                    lc+=1
+                
+                if mnenomic == 'LTORG':
+                    pool_tab.append(len(lit_tab))
             
-            ic.append(f"{'-':<5} | " + " ".join(intermediate_line))
+            elif mnenomic == 'ORIGIN':
+                if parts[1] in sym_tab:
+                    lc = sym_tab[parts[1]][1]
+                else:
+                    lc = int(parts[1])
+
+                inter_code.append(f"(C , {lc})")
+            
+            elif mnenomic == 'EQU':
+                target_address = sym_tab[parts[1]][1]
+
+                if current_label and current_label in sym_tab:
+                    sym_tab[current_label][1] = target_address
+
+                inter_code.append(f"(C , {target_address})")
+                
+            ic.append(f"{'-':<5} | " + " ".join(inter_code))
             continue
 
-        # 3. Handle Declarative Statements (DL)
-        elif mnemonic in DL:
-            intermediate_line.append(f"({DL[mnemonic][0]}, {DL[mnemonic][1]})")
-            intermediate_line.append(f"(C, {parts[1]})")
-            ic.append(f"{lc:<5} | " + " ".join(intermediate_line))
-            
-            if mnemonic == 'DS': lc += int(parts[1])
-            elif mnemonic == 'DC': lc += 1
+        #DL
+        if mnenomic in DL:
+            inter_code.append(f"({DL[mnenomic][0]} , {DL[mnenomic][1]})")
+            inter_code.append(f"(C , {parts[1]})")
+            ic.append(f"{lc:<5} | " + " ".join(inter_code))
+
+            if mnenomic == 'DC' : lc+=1
+            elif mnenomic == 'DS' : lc+=int(parts[1])
+
             continue
 
-        # 4. Handle Imperative Statements (IS)
-        elif mnemonic in OPTAB:
-            intermediate_line.append(f"({OPTAB[mnemonic][0]}, {OPTAB[mnemonic][1]})")
-            
+        #OP
+        if parts[0] in OP:
+            inter_code.append(f"({OP[mnenomic][0]} , {OP[mnenomic][1]})")
+
             for op in parts[1:]:
                 if op in REG:
-                    intermediate_line.append(f"(R, {REG[op]})")
+                    inter_code.append(f"(R , {REG[op]})")
                 elif op in COND:
-                    intermediate_line.append(f"(C, {COND[op]})")
-                elif op.startswith("='"): # It's a Literal
-                    littab.append([op, -1]) # -1 means address not yet assigned
-                    intermediate_line.append(f"(L, {len(littab)})")
-                else: # It's a Symbol
-                    if op not in symtab:
-                        symtab[op] = [-1, sym_index] # -1 means address not yet assigned
+                     inter_code.append(f"(C , {COND[op]})")
+                elif op.startswith("='"):
+                    lit_tab.append([op,-1])
+                    inter_code.append(f"(L , {len(lit_tab)})")
+                else:
+                    if op not in sym_tab:
+                        sym_tab[op] = [sym_index,-1]
                         sym_index += 1
-                    intermediate_line.append(f"(S, {symtab[op][1]})")
-            
-            ic.append(f"{lc:<5} | " + " ".join(intermediate_line))
+                    inter_code.append(f"(S , {sym_tab[op][0]})")
+
+            ic.append(f"{lc:<5} | " + " ".join(inter_code))
             lc += 1
 
-    # Print Outputs
+    print("Symbol Table : ", sym_tab)
+    print("Literal Table : ", lit_tab)
+    print("Pool Table : ", pool_tab)
+
     print("--- INTERMEDIATE CODE ---")
     for line in ic: print(line)
-    
-    print("\n--- SYMBOL TABLE ---")
-    print(f"{'Index':<10} | {'Symbol':<10} | {'Address':<10}")
-    for sym, data in symtab.items(): print(f"{data[1]:<10} | {sym:<10} | {data[0]:<10}")
-        
-    print("\n--- LITERAL TABLE ---")
-    print(f"{'Index':<10} | {'Literal':<10} | {'Address':<10}")
-    for i, lit in enumerate(littab): print(f"{i:<10} | {lit[0]:<10} | {lit[1]:<10}")
-        
-    print("\n--- POOL TABLE ---")
-    print(pooltab)
-    # print(f"{'Index':<10} | {'Literal_Index':<10}")
-    # for i, p in enumerate(pooltab): print(f"{i:<10} | {p:<10}")
 
-# Example Assembly Code
-sample_code = """
-START   200
-        MOVER   AREG, ='5'
-        MOVER   BREG, ='6'
-        ADD     AREG, BREG
-        LTORG
-A       DS      1
-B       DS      2
-        MOVER   CREG, ='3'
-        MOVEM   CREG, A
-        STOP
-        END
+sample_code2 = """
+START 100
+A DS 3
+L1 MOVER AREG, B
+ADD BREG, ='5'
+LTORG
+B DC 10
+ORIGIN B
+NEW EQU B
+Z DC 1
+STOP
+END
 """
 
-pass_one_assembler(sample_code)
+tables(sample_code2)
+
