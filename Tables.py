@@ -65,7 +65,10 @@ def tables(source_code):
                 inter_code.append(f"(C , {lc})")
             
             elif mnenomic == 'EQU':
-                target_address = sym_tab[parts[1]][1]
+                if parts[1] in sym_tab:
+                    target_address = sym_tab[parts[1]][1]
+                else:
+                    target_address = int(parts[1])
 
                 if current_label and current_label in sym_tab:
                     sym_tab[current_label][1] = target_address
@@ -121,8 +124,8 @@ L1 MOVER AREG, B
 ADD BREG, ='5'
 LTORG
 B DC 10
-ORIGIN B
-NEW EQU B
+ORIGIN 500
+NEW EQU 500
 Z DC 1
 STOP
 END
